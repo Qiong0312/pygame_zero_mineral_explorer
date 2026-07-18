@@ -1,0 +1,27 @@
+name: Build Windows EXE
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pygame pgzero pyinstaller
+
+      - name: Build EXE
+        run: python -m PyInstaller --onefile --windowed --add-data "images;images" --add-data "music;music" --collect-all pgzero --collect-all pygame mineral_explorer.py
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: mineral_explorer-windows
+          path: dist/mineral_explorer.exe
