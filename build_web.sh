@@ -39,9 +39,14 @@ fi
 mkdir -p web_game/build/web/archives/0.9
 cp "${PYTHONRC}" web_game/build/web/archives/0.9/pythonrc.py
 
-# Background music via HTML5 Audio (HTTP), not mixer — copy next to index.html
+# Background music via HTML5 Audio (HTTP). Keep MP3 out of web_game/ so pygbag
+# does not reject them — copy from web_bgm/ + ogg SFX/fallback into the static out dir.
 mkdir -p web_game/build/web/music
 cp -f web_game/music/*.ogg web_game/build/web/music/
+if [[ -d web_bgm ]]; then
+  cp -f web_bgm/*.mp3 web_game/build/web/music/
+fi
+ls -lah web_game/build/web/music/
 
 # Local pygbag rewrites CDN → localhost. On Vercel that rewrite does not exist,
 # and COEP:require-corp blocks cross-origin CDN scripts → stuck on "downloading".

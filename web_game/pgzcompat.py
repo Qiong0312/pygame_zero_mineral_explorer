@@ -101,6 +101,13 @@ def unlock_browser_audio():
         from platform import window
 
         window.eval("if (window.__pgzResumeAudio) window.__pgzResumeAudio();")
+        # If BGM was created earlier but autoplay-blocked, retry on this gesture.
+        window.eval(
+            "if (window.__pgzBgm && window.__pgzBgm.paused) {"
+            "  var p = window.__pgzBgm.play();"
+            "  if (p && p.catch) p.catch(function(){});"
+            "}"
+        )
     except Exception as e:
         print("unlock_browser_audio eval failed:", e)
 
@@ -360,9 +367,9 @@ class Actor:
 class Music:
     """Background music.
 
-    On web (emscripten), use HTML5 Audio against HTTP-served /music/*.ogg.
-    Large tracks fail as pygame.mixer.Sound (decode into RAM) and mixer.music
-    streaming is unreliable in pygame-wasm — but short SFX Sounds work fine.
+    On web (emscripten), stream via HTML5 Audio from HTTP /music/*.
+    Prefer MP3 (Chrome/Safari/Firefox/Edge); fall back to OGG.
+    Large tracks as pygame.mixer.Sound often fail in wasm; short SFX Sounds are fine.
     """
 
     def __init__(self):
@@ -419,10 +426,9 @@ class Music:
         return snd
 
     def _play_html(self, name: str):
-        # Served as static files from build/web/music/ (not from the apk MEMFS).
+        # Static files from build/web/music/ (copied by build_web.sh — not apk MEMFS).
         import json
 
-        url = f"music/{name}.ogg"
         try:
             unlock_browser_audio()
         except Exception:
@@ -430,32 +436,75 @@ class Music:
         try:
             from platform import window
 
+            # Absolute /music/... so it works on Vercel and nested paths.
+            # Pass both formats; JS picks what the browser can decode.
+            mp3 = f"/music/{name}.mp3"
+            ogg = f"/music/{name}.ogg"
             window.eval(
                 f"""
                 (function () {{
-                  var url = {json.dumps(url)};
+                  var mp3 = {json.dumps(mp3)};
+                  var ogg = {json.dumps(ogg)};
                   var vol = {self._volume:.3f};
+                  var probe = window.__pgzBgmProbe || (window.__pgzBgmProbe = new Audio());
+                  var url = mp3;
+                  try {{
+                    // Safari: mp3 only. Chrome/Firefox: either. Prefer mp3 for widest support.
+                    if (probe.canPlayType('audio/mpeg')) url = mp3;
+                    else if (probe.canPlayType('audio/ogg; codecs="vorbis"')) url = ogg;
+                    else url = mp3;
+                  }} catch (e) {{
+                    url = mp3;
+                  }}
+
                   if (!window.__pgzBgm) {{
                     window.__pgzBgm = new Audio();
                     window.__pgzBgm.loop = true;
                     window.__pgzBgm.preload = 'auto';
+                    window.__pgzBgm.setAttribute('playsinline', 'true');
                   }}
                   var a = window.__pgzBgm;
+                  a.loop = true;
                   a.volume = Math.max(0, Math.min(1, vol));
+
+                  function tryPlay() {{
+                    var p = a.play();
+                    if (p && p.catch) {{
+                      p.catch(function (err) {{
+                        console.log('bgm play blocked/failed', a.src, err);
+                      }});
+                    }}
+                  }}
+
                   if (a.dataset.track !== url) {{
                     a.dataset.track = url;
+                    a.oncanplay = function () {{
+                      a.oncanplay = null;
+                      tryPlay();
+                    }};
+                    a.onerror = function () {{
+                      console.log('bgm load error', a.src, a.error && a.error.code);
+                      // One fallback swap mp3 <-> ogg
+                      if (url === mp3 && a.dataset.fallback !== '1') {{
+                        a.dataset.fallback = '1';
+                        a.dataset.track = ogg;
+                        a.src = ogg;
+                        a.load();
+                      }}
+                    }};
                     a.src = url;
                     a.load();
+                    // Also attempt immediately (helps when already buffered / gesture stack).
+                    tryPlay();
+                  }} else {{
+                    tryPlay();
                   }}
-                  var p = a.play();
-                  if (p && p.catch) {{
-                    p.catch(function (err) {{ console.log('bgm play blocked/failed', url, err); }});
-                  }}
+                  window.__pgzBgmName = {json.dumps(name)};
                 }})();
                 """
             )
             self._current_name = name
-            print("playing html bgm:", url, flush=True)
+            print("playing html bgm:", name, flush=True)
         except Exception as e:
             print("html bgm failed:", e)
             raise
