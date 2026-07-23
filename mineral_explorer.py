@@ -1,5 +1,6 @@
 import pgzrun
 import random
+import re
 import pygame
 from pgzhelper import *
 import sys, os
@@ -904,7 +905,6 @@ def on_mouse_down(pos):
         show_mineral_popup = True
         clicked_mineral = 'Tungsten Carbide'
 
-import re   # put this with your other imports at the top
 
 def draw_story(story, x, y, max_width, fontsize=24, highlight_color="orange"):
     parts = re.split(r'(\{[^{}]+\})', story)

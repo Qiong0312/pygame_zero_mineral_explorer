@@ -1,6 +1,15 @@
+# Python
 __pycache__/
 *.pyc
+.venv/
+
+# OS / editor
 .DS_Store
+
+# Desktop (PyInstaller) build artefacts
 build/
 dist/
 *.spec
+
+# Web (pygbag) build artefacts — regenerate with ./build_web.sh
+web_game/build/
