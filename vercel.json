@@ -1,6 +1,12 @@
 {
   "buildCommand": "bash build_web.sh",
   "outputDirectory": "web_game/build/web",
+  "rewrites": [
+    {
+      "source": "/archives/:path*",
+      "destination": "https://pygame-web.github.io/archives/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

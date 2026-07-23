@@ -43,5 +43,22 @@ cp "${PYTHONRC}" web_game/build/web/archives/0.9/pythonrc.py
 mkdir -p web_game/build/web/music
 cp -f web_game/music/*.ogg web_game/build/web/music/
 
+# Local pygbag rewrites CDN → localhost. On Vercel that rewrite does not exist,
+# and COEP:require-corp blocks cross-origin CDN scripts → stuck on "downloading".
+# Point the page at same-origin /archives/... (proxied in vercel.json; pythonrc is local).
+.venv/bin/python - <<'PY'
+from pathlib import Path
+index = Path("web_game/build/web/index.html")
+text = index.read_text(encoding="utf-8")
+old = text
+text = text.replace("https://pygame-web.github.io/archives/0.9/", "/archives/0.9/")
+text = text.replace("https://pygame-web.github.io/archives/0.9", "/archives/0.9")
+text = text.replace("/archives/0.9//", "/archives/0.9/")
+if text == old:
+    raise SystemExit("ERROR: no CDN URLs found to rewrite in index.html")
+index.write_text(text, encoding="utf-8")
+print("Rewrote CDN URLs to same-origin /archives/0.9/")
+PY
+
 echo "Web build ready at: web_game/build/web"
 ls -la web_game/build/web | head
